@@ -30,7 +30,11 @@ define("worker_id", help="globally unique worker_id between 0 and 1023", type=in
 
 class IDHandler(tornado.web.RequestHandler):
     max_time = int(time() * 1000)
+    roll_time = 0 # last time sequence rolled over
+
     sequence = 0
+    sequence_mask = 4095 # 12 bits
+
     worker_id = False
     epoch = 1259193600000 # 2009-11-26
     
@@ -43,14 +47,15 @@ class IDHandler(tornado.web.RequestHandler):
             raise tornado.web.HTTPError(500, 'Clock went backwards! %d < %d' % (curr_time, IDHandler.max_time))
         
         if curr_time > IDHandler.max_time:
-            IDHandler.sequence = 0
             IDHandler.max_time = curr_time
         
-        IDHandler.sequence += 1
-        if IDHandler.sequence > 4095:
-            # Sequence overflow, bail out 
-            StatsHandler.errors += 1
-            raise tornado.web.HTTPError(500, 'Sequence Overflow: %d' % IDHandler.sequence)
+        IDHandler.sequence = (IDHandler.sequence + 1) & IDHandler.sequence_mask
+        if IDHandler.sequence == 0:
+            if curr_time == IDHandler.roll_time:
+                # Per millisecond sequence overflow, bail out
+                StatsHandler.errors += 1
+                raise tornado.web.HTTPError(500, 'Sequence Overflow: %d' % IDHandler.sequence)
+            IDHandler.roll_time = curr_time
         
         generated_id = ((curr_time - IDHandler.epoch) << 22) + (IDHandler.worker_id << 12) + IDHandler.sequence
         
