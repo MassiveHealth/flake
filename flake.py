@@ -27,6 +27,7 @@ from tornado.options import define, options
 define("port", default=8888, help="run on the given port", type=int)
 define("worker_id", help="globally unique worker_id between 0 and 1023", type=int)
 
+# FIXME: Send stats to riemann
 
 class IDHandler(tornado.web.RequestHandler):
     max_time = int(time() * 1000)
@@ -87,7 +88,7 @@ class StatsHandler(tornado.web.RequestHandler):
             StatsHandler.errors = 0
             StatsHandler.flush_time = time()
         
-        self.set_header("Content-Type", "text/plain")
+        self.set_header("Content-Type", "application/json")
         self.write(json.dumps(stats))
 
 
